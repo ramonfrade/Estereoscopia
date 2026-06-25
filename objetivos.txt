@@ -1,0 +1,9 @@
+
+desejo construir um sistema que detecta objetos usando duas câmeras e estima a distância do objeto, usando o conceito de estereoscopia.
+deve ser utilizada a linguagem de programação python e a biblioteca opencv com uso de duas câmeras logitech.
+considere que este projeto deve ser desenvolvido para ser executado em sistemas linux.
+
+o lsusb detectou as câmeras como:
+Bus 001 Device 025: ID 046d:0825 Logitech, Inc. Webcam C270
+Bus 001 Device 026: ID 046d:0825 Logitech, Inc. Webcam C270
+
