@@ -31,6 +31,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from depth_config import DepthMode
 from stereo_engine import (
     StereoEngine,
     annotate_frame,
@@ -39,6 +40,7 @@ from stereo_engine import (
 )
 
 engine: StereoEngine | None = None
+default_depth_mode = DepthMode.FACE
 
 
 class SamplePoint(BaseModel):
@@ -65,6 +67,7 @@ def build_frame_payload(result: dict, fps: float | None = None) -> dict:
         "disparity_px": result["disparity_px"],
         "sample_point": point,
         "track_mode": track_mode,
+        "depth_mode": result.get("depth_mode", default_depth_mode.value),
         "images": {
             "left": encode_image_b64(left),
             "right": encode_image_b64(right),
@@ -76,8 +79,8 @@ def build_frame_payload(result: dict, fps: float | None = None) -> dict:
     return payload
 
 
-def run_once() -> dict:
-    eng = StereoEngine()
+def run_once(depth_mode: DepthMode = default_depth_mode) -> dict:
+    eng = StereoEngine(depth_mode=depth_mode)
     eng.open_cameras()
     try:
         result = eng.process_frame()
@@ -86,8 +89,8 @@ def run_once() -> dict:
         eng.close_cameras()
 
 
-def run_demo() -> None:
-    eng = StereoEngine()
+def run_demo(depth_mode: DepthMode = default_depth_mode) -> None:
+    eng = StereoEngine(depth_mode=depth_mode)
     eng.open_cameras()
     print("Demo local — pressione 'q' para sair.")
     try:
@@ -119,7 +122,7 @@ def run_demo() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global engine
-    engine = StereoEngine()
+    engine = StereoEngine(depth_mode=default_depth_mode)
     engine.open_cameras()
     yield
     engine.close_cameras()
@@ -152,6 +155,7 @@ def status():
         "physical_left_index": layout.physical_left,
         "physical_right_index": layout.physical_right,
         "frame_size": list(eng.frame_size),
+        "depth_mode": eng.depth_mode.value,
     }
 
 
@@ -173,6 +177,7 @@ def post_frame(point: SamplePoint):
 
 
 def main() -> None:
+    global default_depth_mode
     parser = argparse.ArgumentParser(description="Worker estéreo Python")
     parser.add_argument(
         "mode",
@@ -183,14 +188,22 @@ def main() -> None:
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--depth-mode",
+        choices=[m.value for m in DepthMode],
+        default=default_depth_mode.value,
+        help="face=MediaPipe+triangulação (padrão, como src_old) | sgbm=disparidade densa",
+    )
     args = parser.parse_args()
 
+    default_depth_mode = DepthMode(args.depth_mode)
+
     if args.mode == "once":
-        print(json.dumps(run_once()))
+        print(json.dumps(run_once(depth_mode=default_depth_mode)))
         return
 
     if args.mode == "demo":
-        run_demo()
+        run_demo(depth_mode=default_depth_mode)
         return
 
     import uvicorn

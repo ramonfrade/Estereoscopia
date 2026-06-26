@@ -1,4 +1,4 @@
-"""Motor estéreo: captura, retificação, disparidade e profundidade."""
+"""Motor estéreo: captura, retificação e profundidade (face ou SGBM)."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import cv2
 import numpy as np
 
 import calibration
+from depth_config import CALIBRATION_JSON, DepthConfig, DepthMode
+from depth_strategies import FaceDepthStrategy, SgbmDepthStrategy
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CALIBRATION_JSON = PROJECT_ROOT / "calibration.json"
 
-# Padrão: mesmos índices usados em calibration_images.py / stereo_calibration.py
 DEFAULT_CALIB_LEFT = 0
 DEFAULT_CALIB_RIGHT = 2
 FRAME_WIDTH = 640
@@ -54,14 +54,22 @@ class CameraLayout:
 
 
 class StereoEngine:
-    def __init__(self, layout: CameraLayout | None = None):
+    def __init__(
+        self,
+        layout: CameraLayout | None = None,
+        depth_mode: DepthMode = DepthMode.FACE,
+        depth_config: DepthConfig | None = None,
+    ):
         self.layout = layout
+        self.depth_mode = depth_mode
+        self.depth_config = depth_config or DepthConfig.from_calibration_json()
         self.caps: dict[int, cv2.VideoCapture] = {}
         self.q_matrix: np.ndarray | None = None
         self.frame_size: tuple[int, int] = (FRAME_WIDTH, FRAME_HEIGHT)
         self.unit_to_cm = 1.0
         self._stereo = self._create_stereo_matcher()
-        self._prev_gray: np.ndarray | None = None
+        self._face_strategy: FaceDepthStrategy | None = None
+        self._sgbm_strategy: SgbmDepthStrategy | None = None
         self._load_calibration()
 
     def _load_calibration(self) -> None:
@@ -80,6 +88,12 @@ class StereoEngine:
         physical_baseline = float(data.get("physical_baseline_cm", PHYSICAL_BASELINE_CM))
         if baseline_units > 0:
             self.unit_to_cm = physical_baseline / baseline_units
+
+        if self.depth_mode == DepthMode.FACE:
+            self._face_strategy = FaceDepthStrategy(self.depth_config)
+        else:
+            assert self.q_matrix is not None
+            self._sgbm_strategy = SgbmDepthStrategy(self._stereo, self.q_matrix, self.unit_to_cm)
 
     @staticmethod
     def _create_stereo_matcher() -> cv2.StereoSGBM:
@@ -116,6 +130,8 @@ class StereoEngine:
         for cap in self.caps.values():
             cap.release()
         self.caps.clear()
+        if self._face_strategy is not None:
+            self._face_strategy.close()
 
     def capture_pair(self) -> tuple[np.ndarray, np.ndarray]:
         """Captura na ordem da calibração: (video calibLeft, video calibRight)."""
@@ -124,7 +140,6 @@ class StereoEngine:
         assert self.layout is not None
 
         indices = (self.layout.calib_left, self.layout.calib_right)
-        # Descarta buffers antigos para frames mais recentes e melhor sincronia USB
         for _ in range(2):
             for index in indices:
                 self.caps[index].grab()
@@ -139,62 +154,10 @@ class StereoEngine:
         return frames[self.layout.calib_left], frames[self.layout.calib_right]
 
     @staticmethod
-    def find_closest_point(disparity: np.ndarray, mask: np.ndarray | None = None, margin: float = 0.08) -> tuple[int, int]:
-        """
-        Ponto com maior disparidade válida. Máscara opcional (ex.: região em movimento).
-        """
-        h, w = disparity.shape
-        y1, y2 = int(h * margin), int(h * (1 - margin))
-        x1, x2 = int(w * margin), int(w * (1 - margin))
-        roi = disparity[y1:y2, x1:x2].copy()
-        roi[roi <= 0.5] = 0
-
-        if mask is not None:
-            roi_mask = mask[y1:y2, x1:x2]
-            roi[~roi_mask] = 0
-
-        if not np.any(roi > 0):
-            return w // 2, h // 2
-        flat_idx = int(np.argmax(roi))
-        ly, lx = np.unravel_index(flat_idx, roi.shape)
-        return x1 + lx, y1 + ly
-
-    def _motion_mask(self, gray_left: np.ndarray) -> np.ndarray | None:
-        if self._prev_gray is None:
-            self._prev_gray = gray_left.copy()
-            return None
-
-        diff = cv2.absdiff(gray_left, self._prev_gray)
-        _, motion = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
-        motion = cv2.dilate(motion, np.ones((7, 7), np.uint8), iterations=2)
-        self._prev_gray = gray_left.copy()
-        return motion > 0
-
-    def depth_at_point(
-        self, disparity: np.ndarray, x: int, y: int, window: int = 15
-    ) -> tuple[float | None, float]:
-        """Profundidade (cm) e disparidade mediana numa janela ao redor do ponto."""
-        if self.q_matrix is None:
-            return None, 0.0
-
-        half = window // 2
-        y1, y2 = max(0, y - half), min(disparity.shape[0], y + half + 1)
-        x1, x2 = max(0, x - half), min(disparity.shape[1], x + half + 1)
-        patch = disparity[y1:y2, x1:x2]
-        valid = patch[patch > 0.5]
-        if valid.size == 0:
-            return None, 0.0
-
-        d = float(np.median(valid))
-        q = self.q_matrix
-        w = q[3, 2] * d + q[3, 3]
-        if abs(w) < 1e-6:
-            return None, d
-        z_units = q[2, 3] / w
-        depth_cm = abs(z_units) * self.unit_to_cm
-        if depth_cm <= 0 or depth_cm > 1_000:
-            return None, d
-        return depth_cm, d
+    def find_closest_point(
+        disparity: np.ndarray, mask: np.ndarray | None = None, margin: float = 0.08
+    ) -> tuple[int, int]:
+        return SgbmDepthStrategy.find_closest_point(disparity, mask, margin)
 
     @staticmethod
     def _rectified_for_physical(
@@ -202,7 +165,6 @@ class StereoEngine:
         rect_calib_right: np.ndarray,
         layout: CameraLayout,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Mapeia imagens retificadas para esquerda/direita físicas na bancada."""
         rect_by_index = {
             layout.calib_left: rect_calib_left,
             layout.calib_right: rect_calib_right,
@@ -225,40 +187,33 @@ class StereoEngine:
             rect_calib_left, rect_calib_right, self.layout
         )
 
-        gray_left = cv2.cvtColor(rect_calib_left, cv2.COLOR_BGR2GRAY)
-        gray_right = cv2.cvtColor(rect_calib_right, cv2.COLOR_BGR2GRAY)
-
-        # Disparidade sempre na ordem da calibração (esq → dir)
-        disparity_raw = self._stereo.compute(gray_left, gray_right)
-        disparity = disparity_raw.astype(np.float32) / 16.0
-
-        h, w = gray_left.shape
-
-        if sample_x is not None and sample_y is not None:
-            cx = max(0, min(w - 1, int(sample_x)))
-            cy = max(0, min(h - 1, int(sample_y)))
-            track_mode = "manual"
+        if self.depth_mode == DepthMode.FACE:
+            assert self._face_strategy is not None
+            depth_result = self._face_strategy.estimate(
+                display_left, display_right, rect_calib_left, rect_calib_right
+            )
         else:
-            motion_mask = self._motion_mask(gray_left)
-            if motion_mask is not None and np.any(motion_mask):
-                cx, cy = self.find_closest_point(disparity, mask=motion_mask)
-                track_mode = "motion"
-            else:
-                cx, cy = self.find_closest_point(disparity)
-                track_mode = "closest"
-
-        depth_cm, disp_value = self.depth_at_point(disparity, cx, cy)
+            assert self._sgbm_strategy is not None
+            depth_result = self._sgbm_strategy.estimate(
+                display_left,
+                display_right,
+                rect_calib_left,
+                rect_calib_right,
+                sample_x,
+                sample_y,
+            )
 
         return {
             "rect_calib_left": rect_calib_left,
             "rect_calib_right": rect_calib_right,
-            "display_left": display_left,
-            "display_right": display_right,
-            "disparity": disparity,
-            "depth_cm": depth_cm,
-            "disparity_px": disp_value,
-            "sample_point": {"x": int(cx), "y": int(cy)},
-            "track_mode": track_mode,
+            "display_left": depth_result["display_left"],
+            "display_right": depth_result["display_right"],
+            "disparity": depth_result["disparity"],
+            "depth_cm": depth_result["depth_cm"],
+            "disparity_px": depth_result["disparity_px"],
+            "sample_point": depth_result["sample_point"],
+            "track_mode": depth_result["track_mode"],
+            "depth_mode": self.depth_mode.value,
         }
 
     def process_frame(self, sample_x: int | None = None, sample_y: int | None = None) -> dict:
@@ -277,24 +232,34 @@ def encode_image_b64(image: np.ndarray, fmt: str = ".jpg") -> str:
 
 
 def disparity_to_colormap(disparity: np.ndarray) -> np.ndarray:
+    if not np.any(disparity > 0):
+        return np.zeros((*disparity.shape, 3), dtype=np.uint8)
     normalized = cv2.normalize(disparity, None, 0, 255, cv2.NORM_MINMAX)
     return cv2.applyColorMap(normalized.astype(np.uint8), cv2.COLORMAP_JET)
 
 
-def annotate_frame(frame: np.ndarray, depth_cm: float | None, point: dict, track_mode: str = "") -> np.ndarray:
+def annotate_frame(
+    frame: np.ndarray, depth_cm: float | None, point: dict, track_mode: str = ""
+) -> np.ndarray:
     output = frame.copy()
     x, y = int(point["x"]), int(point["y"])
     cv2.drawMarker(output, (x, y), (0, 255, 0), cv2.MARKER_CROSS, 24, 2)
     cv2.circle(output, (x, y), 10, (0, 255, 0), 2)
-    if depth_cm is not None:
+    if depth_cm is not None and depth_cm != float("inf"):
         label = f"Distancia: {depth_cm:.1f} cm"
     else:
         label = "Distancia: --"
     cv2.putText(output, label, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-    if track_mode == "closest":
-        cv2.putText(output, "Objeto mais proximo", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-    elif track_mode == "motion":
-        cv2.putText(output, "Seguindo movimento", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-    elif track_mode == "manual":
-        cv2.putText(output, "Ponto clicado", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+    mode_labels = {
+        "face": "Rosto detectado",
+        "lost": "TRACKING LOST",
+        "closest": "Objeto mais proximo",
+        "motion": "Seguindo movimento",
+        "manual": "Ponto clicado",
+    }
+    sub = mode_labels.get(track_mode, "")
+    if sub:
+        color = (0, 0, 255) if track_mode == "lost" else (0, 255, 255)
+        cv2.putText(output, sub, (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     return output

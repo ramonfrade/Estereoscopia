@@ -63,7 +63,7 @@
     <h1>Visão Estéreo — Worker Python + TypeScript</h1>
     <p class="status" id="status">Conectando ao worker…</p>
     <p class="depth" id="depth">— cm</p>
-    <p class="status" style="font-size:0.9rem">Parado: mede a região central (fique no meio da imagem). Mova o braço/objeto para seguir movimento. Clique para fixar um ponto.</p>
+    <p class="status" style="font-size:0.9rem">Modo padrão: detecção de rosto (como src_old). Posicione o rosto nas duas câmeras. Para disparidade densa, inicie o worker com <code>--depth-mode sgbm</code>.</p>
     <button id="toggle">Pausar</button>
     <button id="reset">Modo automático</button>
     <div class="grid">

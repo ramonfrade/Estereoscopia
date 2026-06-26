@@ -6,7 +6,9 @@ Stereo vision object detection + distance estimation using two Logitech C270 web
 
 ## Current state
 
-Greenfield — only `objetivos.txt` exists with the project brief. No source code, no manifests, no dependencies declared yet.
+Active code lives in `src/` (Python worker + engine) and `web/` (TypeScript frontend). **`src_old/` is frozen** — it works as the reference implementation; do not modify it.
+
+Depth estimation default: **MediaPipe face detection + triangulation** (same approach as `src_old/stereoVision.py`). Optional `--depth-mode sgbm` uses dense disparity.
 
 ## Known hardware
 
@@ -18,13 +20,13 @@ Greenfield — only `objetivos.txt` exists with the project brief. No source cod
 - Language: **Python 3**
 - Library: **OpenCV** (`cv2`)
 - Platform: **Linux only**
-- No existing build/test/lint config — these need to be introduced as the project grows.
+- Tests: `pytest` in `tests/`
 
 ## Camera setup notes
 
 - `v4l2-ctl` for querying/resetting camera properties
 - Stereo calibration (chessboard + `cv2.stereoCalibrate`) will be needed
-- Depth from disparity map via `cv2.StereoSGBM_create`
+- Depth from face triangulation (default) or disparity map via `cv2.StereoSGBM_create`
 
 ## Future-proofing
 
@@ -33,3 +35,4 @@ When adding tools or config, prefer conventional Python project layout:
 - `requirements.txt` or `pyproject.toml`
 - `tests/` with `pytest`
 - `.gitignore` covering `__pycache__/`, `*.pyc`, `.venv/`, calibration files
+

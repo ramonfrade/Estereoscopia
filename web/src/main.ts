@@ -12,6 +12,7 @@ const imgDisp = document.getElementById("img-disp") as HTMLImageElement;
 let running = true;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let manualPoint: { x: number; y: number } | null = null;
+let workerStatus: import("./worker-client").WorkerStatus | null = null;
 
 function imageCoords(img: HTMLImageElement, clientX: number, clientY: number) {
   const rect = img.getBoundingClientRect();
@@ -36,16 +37,21 @@ async function poll() {
     depthEl.textContent =
       frame.depth_cm != null ? `${frame.depth_cm.toFixed(1)} cm` : "— cm";
     const mode =
-      frame.track_mode === "manual"
-        ? "clique"
-        : frame.track_mode === "motion"
-          ? "seguindo movimento"
-          : frame.track_mode === "center"
-            ? "centro (parado)"
-            : "auto";
+      frame.track_mode === "face"
+        ? "rosto"
+        : frame.track_mode === "lost"
+          ? "sem rosto"
+          : frame.track_mode === "manual"
+            ? "clique"
+            : frame.track_mode === "motion"
+              ? "seguindo movimento"
+              : frame.track_mode === "closest"
+                ? "objeto mais próximo"
+                : "auto";
     const fps = frame.fps != null ? ` | ${frame.fps} FPS` : "";
+    const dm = frame.depth_mode ?? workerStatus?.depth_mode ?? "face";
     statusEl.textContent =
-      `Modo: ${mode} | disparidade ${frame.disparity_px.toFixed(1)} px | ponto (${frame.sample_point.x}, ${frame.sample_point.y})${fps}`;
+      `Modo: ${mode} (${dm}) | disparidade ${frame.disparity_px.toFixed(1)} px | ponto (${frame.sample_point.x}, ${frame.sample_point.y})${fps}`;
     statusEl.classList.remove("error");
   } catch (err) {
     statusEl.textContent = `Erro: ${err instanceof Error ? err.message : String(err)}`;
@@ -58,7 +64,8 @@ async function init() {
   try {
     await client.health();
     const st = await client.status();
-    statusEl.textContent = `Físico: ${st.physical_left_index}/${st.physical_right_index} | Calib: ${st.calib_left_index}/${st.calib_right_index} — ${st.frame_size[0]}×${st.frame_size[1]}`;
+    workerStatus = st;
+    statusEl.textContent = `Modo ${st.depth_mode} | Físico: ${st.physical_left_index}/${st.physical_right_index} | Calib: ${st.calib_left_index}/${st.calib_right_index} — ${st.frame_size[0]}×${st.frame_size[1]}`;
     poll();
   } catch (err) {
     statusEl.textContent =

@@ -3,7 +3,8 @@ export interface FrameResponse {
   depth_cm: number | null;
   disparity_px: number;
   sample_point: { x: number; y: number };
-  track_mode?: "center" | "motion" | "manual" | "";
+  track_mode?: "face" | "lost" | "center" | "motion" | "manual" | "closest" | "";
+  depth_mode?: "face" | "sgbm";
   fps?: number;
   images: {
     left: string;
@@ -19,6 +20,7 @@ export interface WorkerStatus {
   physical_left_index: number;
   physical_right_index: number;
   frame_size: [number, number];
+  depth_mode: string;
 }
 
 export type WorkerMode = "fetch" | "spawn";

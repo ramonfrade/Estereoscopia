@@ -3,8 +3,8 @@ opencv-python
 numpy
 fastapi
 uvicorn[standard]
-fastapi
 imutils
 matplotlib
 mediapipe==0.9
+pytest>=8.0
 
