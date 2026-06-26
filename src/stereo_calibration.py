@@ -12,7 +12,8 @@ SHOW_PREVIEW = bool(os.environ.get("DISPLAY"))
 
 ######### FIND CHESSBOARD CORNERS - OBJECT POINTS AND IMAGE POINTS ##########
 
-chessboardSize = (7, 3)
+# chessboardSize = (7, 3)
+chessboardSize = (7, 7)
 frameSize = (640, 480)
 
 
@@ -20,10 +21,10 @@ frameSize = (640, 480)
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-
-# prepare object points, like (0,0,0), (1,0,0) ......, (6,5,0)
+SQUARE_CM = 4.4
 objp = np.zeros((chessboardSize[0] * chessboardSize[1], 3), np.float32)
 objp[:, :2] = np.mgrid[0:chessboardSize[0], 0:chessboardSize[1]].T.reshape(-1, 2)
+objp[:, :2] *= SQUARE_CM   # ← cada “passo” do grid = 4,4 cm
 
 
 # Arrays to store object points and image points from all the images
@@ -126,7 +127,7 @@ calibration_data = {
     "Q": Q.tolist(),
     "frameSize": [int(grayL.shape[1]), int(grayL.shape[0])],
     "baseline_units": float(np.linalg.norm(trans)),
-    "physical_baseline_cm": 9.0,
+    "physical_baseline_cm": 7.0,
     "chessboardSize": list(chessboardSize),
     "cameras": {
         "calibLeft": 0,
