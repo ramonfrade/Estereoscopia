@@ -1,7 +1,7 @@
 import numpy as np
 import cv2 as cv
 import glob
-
+import json
 
 
 ######### FIND CHESSBOARD CORNERS - OBJECT POINTS AND IMAGE POINTS ##########
@@ -26,8 +26,8 @@ imgpointsL = [] # 2d points in image plane.
 imgpointsR = [] # 2d points in image plane.
 
 
-imagesLeft = sorted(glob.glob('images/stereoLeft/*.png')))
-imagesRight = sorted(glob.glob('images/stereoRight/*.png')))
+imagesLeft = sorted(glob.glob('/Dados/Fernando/semana_sfs/estereoscopia/images/stereoLeft/*.png'))
+imagesRight = sorted(glob.glob('/Dados/Fernando/semana_sfs/estereoscopia/images/stereoRight/*.png'))
 
 for imgLeft, imgRight in zip(imagesLeft, imagesRight):
 
@@ -109,7 +109,7 @@ cv_file.write("stereoMapR_y", stereoMapR[1])
 
 cv_file.release()
 
-calibration_path = PROJECT_ROOT / "calibration.json"
+calibration_path = "/Dados/Fernando/semana_sfs/estereoscopia/calibration.json"
 calibration_data = {
     "Q": Q.tolist(),
     "frameSize": [int(grayL.shape[1]), int(grayL.shape[0])],
@@ -126,5 +126,6 @@ calibration_data = {
 with open(calibration_path, "w", encoding="utf-8") as f:
     json.dump(calibration_data, f, indent=2)
 
-print(f"Calibração salva em {stereo_map_path} e {calibration_path}")
+# print(f"Calibração salva em {stereo_map_path} e {calibration_path}")
+print(f"Calibração salva em {calibration_path}")
 print("Stereo calibration complete")

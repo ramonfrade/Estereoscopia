@@ -1,4 +1,3 @@
-"""Motor estéreo: captura, retificação, disparidade e profundidade."""
 
 from __future__ import annotations
 

@@ -5,8 +5,8 @@ import imutils
 import cv2
 
 # Camera parameters to undistort and rectify images
-cv_file = cv.FileStorage()
-cv_file.open('stereoMap.xml', cv.FileStorage_READ)
+cv_file = cv2.FileStorage()
+cv_file.open('/Dados/Fernando/semana_sfs/estereoscopia/stereoMap.xml', cv2.FileStorage_READ)
 
 stereoMapL_x = cv_file.getNode("stereoMapL_x").mat()
 stereoMapL_y = cv_file.getNode("stereoMapL_y").mat()
@@ -14,7 +14,7 @@ stereoMapR_x = cv_file.getNode("stereoMapR_x").mat()
 stereoMapR_y = cv_file.getNode("stereoMapR_y").mat()
 
 
-def undistortRectify(frame_right, frame_left):
+def undistortRectify(frameR, frameL):
 
     # Undistort and rectify images
     undistortedL= cv2.remap(frameL, stereoMapL_x, stereoMapL_y, cv2.INTER_LANCZOS4, cv2.BORDER_CONSTANT, 0)

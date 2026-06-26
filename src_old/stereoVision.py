@@ -1,7 +1,7 @@
-
-
-
-
+import sys
+import cv2
+import numpy as np
+import time
 import imutils
 from matplotlib import pyplot as plt
 
@@ -13,12 +13,12 @@ import calibration
 import mediapipe as mp
 import time
 
-mp_face_detactor = mp.solutions.face_detection
+mp_facedetector = mp.solutions.face_detection
 mp_draw = mp.solutions.drawing_utils
 
 # open both cameras
-cap_right = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap_left  = cv2.VideoCapture(2, cv2.CAP_DSHOW)
+cap_right = cv2.VideoCapture(0) # , cv2.CAP_DSHOW)
+cap_left  = cv2.VideoCapture(2) # , cv2.CAP_DSHOW)
 
 
 # stereo vision setup parameters
@@ -32,7 +32,9 @@ alpha = 56.6        # camera field of view in the horizontal direction
 
 # Main program loop with face detector and depth estimation using stereo vision
 with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detection:
+
     while (cap_right.isOpened() and cap_left.isOpened()):
+
         success_right, frame_right = cap_right.read()
         success_left,  frame_left  = cap_left.read()
 
@@ -51,8 +53,8 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
             start = time.time()
         
             # Convert the BGR image to RGB
-            frame_right = cv2.cvtColor(frame_right, cv2.COLOR_BGR2GRAY)
-            frame_left  = cv2.cvtColor(frame_left,  cv2.COLOR_BGR2GRAY)
+            frame_right = cv2.cvtColor(frame_right, cv2.COLOR_BGR2RGB)
+            frame_left  = cv2.cvtColor(frame_left,  cv2.COLOR_BGR2RGB)
 
             # Process the image and find faces
             results_right = face_detection.process(frame_right)
@@ -62,6 +64,7 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
             frame_right = cv2.cvtColor(frame_right, cv2.COLOR_RGB2BGR)
             frame_left  = cv2.cvtColor(frame_left,  cv2.COLOR_RGB2BGR)
 
+
             ################# CALCULATING DEPTH #####################
 
             center_right = 0
@@ -69,9 +72,9 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
 
             if results_right.detections:
                 for id, detection in enumerate(results_right.detections):
-                    np_draw.draw_detection(frame_right, detection)
+                    mp_draw.draw_detection(frame_right, detection)
 
-                    bbox = detection.location_data.relative_bounding_box
+                    bBox = detection.location_data.relative_bounding_box
 
                     h, w, c = frame_right.shape
 
@@ -84,9 +87,9 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
 
             if results_left.detections:
                 for id, detection in enumerate(results_left.detections):
-                    np_draw.draw_detection(frame_left, detection)
+                    mp_draw.draw_detection(frame_left, detection)
 
-                    bbox = detection.location_data.relative_bounding_box
+                    bBox = detection.location_data.relative_bounding_box
 
                     h, w, c = frame_left.shape
 
@@ -97,19 +100,21 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
                     cv2.putText(frame_left, f'{int(detection.score[0] * 100)}%', (boundBox[0], boundBox[1] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     
 
+
+
+            # If no ball can be caught in one camera show txt "TRACKING LOST"
             if not results_right.detections or not results_left.detections:
                 cv2.putText(frame_right, "TRACKING LOST", (75, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                cv2.putText(frame_left, "TRACKING LOST", (75, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(frame_left,  "TRACKING LOST", (75, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             else:
-                # Function
-                # All formul
-                depth = tri.find_depth(center_pint_right, center_point_left, frame_right, frame_left, B, f, alpha)
+                # Function to calculate depth of objetct. Outputs vector of all depths
+                # All formulas used to find depth is in video presentation
+                depth = tri.find_depth(center_point_right, center_point_left, frame_right, frame_left, B, f, alpha)
 
                 cv2.putText(frame_right, "Distance: " + str(round(depth, 1)), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.putText(frame_left,  "Distance: " + str(round(depth, 1)), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 # Multiply computer value with 205.8 to get real-life depth in [cm]. The
-
                 print("Depth: ", str(round(depth, 1)))
 
 
@@ -120,13 +125,22 @@ with mp_facedetector.FaceDetection(min_detection_confidence=0.7) as face_detecti
             fps = 1 / totalTime
             # print("FPS: ", fps)
 
-            
+            cv2.putText(frame_right, f'FPS: {int(fps)}', (20, 450), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+            cv2.putText(frame_left,  f'FPS: {int(fps)}', (20, 450), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
 
-            ############################################
 
-            # Display the frames
+            # Show the frames
             cv2.imshow("Frame Right", frame_right)
             cv2.imshow("Frame Left", frame_left)
 
-            ############################################
-            
+
+            # Hit "q" to close the uindow
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+ 
+# Release and destroy all windows before termination
+cap_right.release()
+cap_left.release()
+
+cv2.destroyAllWindows()
