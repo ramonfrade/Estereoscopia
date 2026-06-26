@@ -1,0 +1,11 @@
+# Ambiente separado para src_old/ (Python 3.11 — mp.solutions ainda disponível)
+# Criar: python3.11 -m venv venv_old && source venv_old/bin/activate
+#        pip install -r requirements-src_old.txt
+#
+# mediapipe 0.9.x não está mais no PyPI; 0.10.5 ainda expõe mp.solutions.
+
+mediapipe==0.10.5
+opencv-python
+numpy
+imutils
+matplotlib

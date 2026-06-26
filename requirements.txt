@@ -4,4 +4,7 @@ numpy
 fastapi
 uvicorn[standard]
 fastapi
+imutils
+matplotlib
+mediapipe==0.9
 
