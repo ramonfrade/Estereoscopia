@@ -1,0 +1,4 @@
+# python -c "import cv2"
+opencv-python
+numpy
+
