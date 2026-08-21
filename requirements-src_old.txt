@@ -12,4 +12,5 @@ matplotlib==3.11.0
 fastapi==0.138.1
 imutils==0.5.4
 pytest==9.1.1
+pillow==12.2.0
 
