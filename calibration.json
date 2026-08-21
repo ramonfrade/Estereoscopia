@@ -33,7 +33,7 @@
   "physical_baseline_cm": 15.0,
   "chessboardSize": [
     7,
-    7
+    3
   ],
   "board_size_cm": [
     34.624,
@@ -45,5 +45,7 @@
     "calibRight": 2,
     "physicalLeft": 2,
     "physicalRight": 0
-  }
+  },
+  "pattern": "8x4",
+  "calibration_error_pct": 0.53
 }
