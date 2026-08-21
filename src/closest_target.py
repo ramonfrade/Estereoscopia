@@ -41,11 +41,15 @@ def find_closest_target(
     margin: float = 0.08,
     min_area_pct: float = 0.002,
     near_percentile: float = 70.0,
+    max_disparity: float | None = None,
+    min_x: int = 0,
 ) -> tuple[int, int] | None:
     """Centróide do componente conectado mais próximo (maior disparidade média).
 
     - Descarta a borda (margin) onde a disparidade é ruidosa;
     - Mantém apenas disparidades válidas (> 0.5 px);
+    - Ignora saturação da faixa SGBM (`max_disparity`) e a banda esquerda
+      inválida (`min_x`, colunas x < numDisparities);
     - Considera "perto" valores acima do percentil `near_percentile`;
     - Escolhe o componente com maior disparidade média e área >= min_area_pct;
     - Retorna (x, y) em coordenadas do frame original, ou None sem alvo.
@@ -56,11 +60,15 @@ def find_closest_target(
     roi = disparity[y1:y2, x1:x2]
 
     valid = roi > MIN_VALID_DISPARITY
+    if max_disparity is not None:
+        valid &= roi < max_disparity
+    if min_x > x1:
+        valid &= np.arange(x1, x2)[np.newaxis, :] >= min_x
     if not np.any(valid):
         return None
 
     threshold = float(np.percentile(roi[valid], near_percentile))
-    near = (roi >= threshold).astype(np.uint8)
+    near = (valid & (roi >= threshold)).astype(np.uint8)
 
     num, labels, stats, centroids = cv2.connectedComponentsWithStats(near, connectivity=8)
     min_area = int(min_area_pct * roi.size)
@@ -90,6 +98,7 @@ def depth_at_point(
     x: int,
     y: int,
     window: int = 15,
+    max_disparity: float | None = None,
 ) -> float | None:
     """Profundidade em cm no ponto (x, y) via matriz Q (mesma matemática da engine)."""
     half = window // 2
@@ -97,6 +106,8 @@ def depth_at_point(
     x1, x2 = max(0, x - half), min(disparity.shape[1], x + half + 1)
     patch = disparity[y1:y2, x1:x2]
     valid = patch[patch > MIN_VALID_DISPARITY]
+    if max_disparity is not None:
+        valid = valid[valid < max_disparity]
     if valid.size == 0:
         return None
 
@@ -116,7 +127,10 @@ def run_demo(margin: float = 0.08, min_area_pct: float = 0.002, num_disparities:
     eng = StereoEngine(depth_mode=DepthMode.SGBM, num_disparities=num_disparities)
     eng.open_cameras()
     detector = FaceDetector()
-    print("Alvo mais próximo (janela única — câmera esquerda). 'q' para sair.")
+    print(
+        f"Alvo mais próximo (janela única — câmera esquerda). "
+        f"Faixa SGBM {eng.num_disparities} px (centro válido). 'q' para sair."
+    )
     try:
         while True:
             start = time.time()
@@ -126,13 +140,23 @@ def run_demo(margin: float = 0.08, min_area_pct: float = 0.002, num_disparities:
 
             detector.detect_all_with_draw(left)  # retângulos em todos os rostos
 
-            target = find_closest_target(disparity, margin=margin, min_area_pct=min_area_pct)
+            nd = eng.num_disparities
+            max_d = float(nd - 1)
+            target = find_closest_target(
+                disparity, margin=margin, min_area_pct=min_area_pct,
+                max_disparity=max_d, min_x=nd,
+            )
             depth_cm: float | None = None
             if target is not None:
                 cx, cy = target
-                depth_cm = depth_at_point(disparity, eng.q_matrix, eng.unit_to_cm, cx, cy)
+                depth_cm = depth_at_point(
+                    disparity, eng.q_matrix, eng.unit_to_cm, cx, cy, max_disparity=max_d
+                )
                 cv2.circle(left, (cx, cy), 8, (0, 255, 0), 2)
-                label = f"{depth_cm:.0f} cm" if depth_cm is not None else "--"
+                if depth_cm is not None:
+                    label = f"{depth_cm:.1f} cm"
+                else:
+                    label = "muito proximo"
                 cv2.putText(left, label, (cx + 14, cy + 6),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             else:
@@ -165,8 +189,9 @@ def main() -> None:
     parser.add_argument("--min-area-pct", type=float, default=0.002,
                         help="área mínima do alvo como fração do frame (padrão 0.002)")
     parser.add_argument("--num-disparities", type=int, default=512,
-                        help="faixa de disparidade do SGBM (múltiplo de 16; maior = mede "
-                             "objetos mais próximos, porém mais lento; padrão 512)")
+                        help="faixa de disparidade pedida (múltiplo de 16). Limitada a "
+                             "metade da largura do frame para o centro continuar "
+                             "mensurável; padrão 512 → 320 em 640 px")
     args = parser.parse_args()
     run_demo(margin=args.margin, min_area_pct=args.min_area_pct,
              num_disparities=args.num_disparities)

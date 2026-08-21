@@ -71,3 +71,63 @@ def test_depth_at_point_none_when_no_valid_disparity():
     disparity = np.zeros((50, 50), dtype=np.float32)
 
     assert depth_at_point(disparity, q, unit_to_cm=1.0, x=25, y=25) is None
+
+
+def test_find_closest_target_ignores_saturated_blob():
+    """SGBM satura no teto da faixa: esse blob NÃO é o alvo (distância falsa ~38 cm)."""
+    disparity = np.zeros((100, 100), dtype=np.float32)
+    disparity[11:30, 11:30] = 256.0  # saturação da faixa (artefato)
+    disparity[61:80, 61:80] = 40.0  # objeto real
+
+    cx, cy = find_closest_target(disparity, max_disparity=255.0)
+
+    assert (cx, cy) == (70, 70)
+
+
+def test_find_closest_target_ignores_invalid_left_band():
+    """Colunas x < numDisparities não têm match válido no SGBM."""
+    disparity = np.zeros((100, 100), dtype=np.float32)
+    disparity[41:60, 5:25] = 80.0  # banda inválida (esquerda)
+    disparity[41:60, 70:90] = 30.0  # região válida
+
+    cx, cy = find_closest_target(disparity, margin=0.0, min_x=50)
+
+    assert (cx, cy) == (80, 50)
+
+
+def test_depth_at_point_none_when_only_saturated():
+    q = np.array(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 100.0],
+            [0.0, 0.0, -1.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    disparity = np.full((50, 50), 256.0, dtype=np.float32)
+
+    assert depth_at_point(disparity, q, unit_to_cm=1.0, x=25, y=25, max_disparity=255.0) is None
+
+
+def test_depth_at_point_real_q_varies_with_disparity():
+    """Q da calibração: Z = f*B/d. Se d dobra, a distância cai pela metade — nunca um valor único."""
+    q = np.array(
+        [
+            [1.0, 0.0, 0.0, 1875.958],
+            [0.0, 1.0, 0.0, -105.511],
+            [0.0, 0.0, 0.0, 640.950],
+            [0.0, 0.0, -0.288949, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    unit_to_cm = 15.0 / 3.4608165202330667
+    far = np.full((50, 50), 40.0, dtype=np.float32)
+    near = np.full((50, 50), 80.0, dtype=np.float32)
+
+    z_far = depth_at_point(far, q, unit_to_cm, x=25, y=25)
+    z_near = depth_at_point(near, q, unit_to_cm, x=25, y=25)
+
+    assert z_far is not None and z_near is not None
+    assert z_far > z_near
+    assert abs(z_far / z_near - 2.0) < 0.05

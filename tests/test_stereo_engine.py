@@ -1,7 +1,8 @@
 import numpy as np
 
+from depth_config import DepthMode
 from depth_strategies import SgbmDepthStrategy
-from stereo_engine import CameraLayout, StereoEngine
+from stereo_engine import CameraLayout, StereoEngine, usable_num_disparities
 
 
 def test_camera_layout_from_json():
@@ -70,3 +71,18 @@ def test_matcher_disparity_range_covers_close_objects():
     """
     matcher = StereoEngine._create_stereo_matcher()
     assert matcher.getNumDisparities() >= 256
+
+
+def test_usable_num_disparities_keeps_frame_center_valid():
+    """SGBM anula colunas x < numDisparities. 512 em 640 px deixa o centro inválido."""
+    nd = usable_num_disparities(frame_width=640, requested=512)
+    assert nd % 16 == 0
+    assert nd <= 640 // 2
+    assert nd >= 256
+
+
+def test_engine_clamps_num_disparities_to_keep_center_valid():
+    eng = StereoEngine(depth_mode=DepthMode.SGBM, num_disparities=512)
+    assert eng.num_disparities <= eng.frame_size[0] // 2
+    assert eng.num_disparities % 16 == 0
+    assert eng._stereo.getNumDisparities() == eng.num_disparities

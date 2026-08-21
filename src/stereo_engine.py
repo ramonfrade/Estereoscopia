@@ -23,6 +23,17 @@ FRAME_HEIGHT = 480
 PHYSICAL_BASELINE_CM = 15.0
 
 
+def usable_num_disparities(frame_width: int, requested: int) -> int:
+    """SGBM anula colunas x < numDisparities; o centro do frame precisa continuar válido.
+
+    Em 640 px, 512 disparidades deixam só ~128 colunas à direita com match —
+    a pessoa no centro some do mapa e o alvo 'prende' num artefato (~38 cm).
+    """
+    max_nd = (frame_width // 2 // 16) * 16
+    nd = min(max(16, requested), max_nd)
+    return max(16, (nd // 16) * 16)
+
+
 class CameraLayout:
     """Separa ordem da calibração (fixa) da posição física na bancada."""
 
@@ -68,11 +79,12 @@ class StereoEngine:
         self.q_matrix: np.ndarray | None = None
         self.frame_size: tuple[int, int] = (FRAME_WIDTH, FRAME_HEIGHT)
         self.unit_to_cm = 1.0
-        self._num_disparities = num_disparities
-        self._stereo = self._create_stereo_matcher(self._num_disparities)
         self._face_strategy: FaceDepthStrategy | None = None
         self._sgbm_strategy: SgbmDepthStrategy | None = None
         self._load_calibration()
+        self.num_disparities = usable_num_disparities(self.frame_size[0], num_disparities)
+        self._stereo = self._create_stereo_matcher(self.num_disparities)
+        self._init_depth_strategy()
 
     def _load_calibration(self) -> None:
         if not CALIBRATION_JSON.exists():
@@ -91,6 +103,7 @@ class StereoEngine:
         if baseline_units > 0:
             self.unit_to_cm = physical_baseline / baseline_units
 
+    def _init_depth_strategy(self) -> None:
         if self.depth_mode == DepthMode.FACE:
             self._face_strategy = FaceDepthStrategy(self.depth_config)
         else:
@@ -99,9 +112,8 @@ class StereoEngine:
 
     @staticmethod
     def _create_stereo_matcher(num_disparities: int = 512) -> cv2.StereoSGBM:
-        """Matcher SGBM com faixa ampla: f=641 px + baseline 15 cm dão ~19 cm
-        de profundidade mínima com 512 disparidades (128 saturava em ~76 cm,
-        'prendendo' o alvo mais próximo em um valor fixo)."""
+        """Cria o matcher SGBM. A faixa efetiva é limitada por usable_num_disparities
+        para o centro do frame continuar mensurável (512 em 640 px anula o centro)."""
         window_size = 5
         min_disp = 0
         return cv2.StereoSGBM_create(
