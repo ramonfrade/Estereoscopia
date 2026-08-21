@@ -207,6 +207,18 @@ python src/worker.py demo           # 'q' para sair
 python src/worker.py demo --depth-mode sgbm
 ```
 
+### Alvo mais próximo (janela única)
+
+```bash
+python src/closest_target.py        # 'q' para sair
+```
+
+Usa as duas câmeras (disparidade densa SGBM) para calcular distâncias, mas
+exibe **somente o feed esquerdo** com um círculo pequeno + distância em cm no
+**objeto mais próximo** (dedo, mão, qualquer objeto — sem reconhecê-lo) e
+retângulos em **todos os rostos** detectados (MediaPipe). Ajustes opcionais:
+`--margin` (borda ignorada) e `--min-area-pct` (área mínima do alvo).
+
 ### Modo único (JSON no stdout — para integração/scripts)
 
 ```bash

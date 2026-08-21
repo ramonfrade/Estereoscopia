@@ -68,6 +68,27 @@ class FaceDetector:
         score = float(detection.score[0]) if detection.score else 0.0
         return FaceCenter(x=cx, y=cy, score=score, bbox=bbox), detection
 
+    def detect_all_with_draw(self, frame_bgr) -> list[FaceCenter]:
+        """Detecta TODOS os rostos e desenha um retângulo em cada um.
+
+        Retorna a lista de FaceCenter (uma por rosto), na ordem das detecções.
+        """
+        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        results = self._detector.process(rgb)
+        if not results.detections:
+            return []
+
+        h, w = frame_bgr.shape[:2]
+        faces: list[FaceCenter] = []
+        for detection in results.detections:
+            box = detection.location_data.relative_bounding_box
+            cx, cy, bbox = bbox_center(box.xmin, box.ymin, box.width, box.height, w, h)
+            bx, by, bw, bh = bbox
+            cv2.rectangle(frame_bgr, (bx, by), (bx + bw, by + bh), (0, 255, 0), 2)
+            score = float(detection.score[0]) if detection.score else 0.0
+            faces.append(FaceCenter(x=cx, y=cy, score=score, bbox=bbox))
+        return faces
+
     def close(self) -> None:
         self._detector.close()
 
