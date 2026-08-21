@@ -5,6 +5,7 @@ export interface FrameResponse {
   sample_point: { x: number; y: number };
   track_mode?: "face" | "lost" | "center" | "motion" | "manual" | "closest" | "";
   depth_mode?: "face" | "sgbm";
+  calibration_error_pct?: number | null;
   fps?: number;
   images: {
     left: string;
@@ -21,6 +22,7 @@ export interface WorkerStatus {
   physical_right_index: number;
   frame_size: [number, number];
   depth_mode: string;
+  calibration_error_pct?: number | null;
 }
 
 export type WorkerMode = "fetch" | "spawn";

@@ -27,14 +27,17 @@ class DepthConfig:
     focal_mm: float = DEFAULT_FOCAL_MM
     fov_deg: float = DEFAULT_FOV_DEG
     face_min_confidence: float = 0.7
+    calibration_error_pct: float | None = None
 
     @classmethod
     def from_calibration_json(cls, path: Path = CALIBRATION_JSON) -> DepthConfig:
         if not path.exists():
             return cls()
         data = json.loads(path.read_text(encoding="utf-8"))
+        err = data.get("calibration_error_pct")
         return cls(
             baseline_cm=float(data.get("physical_baseline_cm", DEFAULT_BASELINE_CM)),
             focal_mm=DEFAULT_FOCAL_MM,
             fov_deg=DEFAULT_FOV_DEG,
+            calibration_error_pct=float(err) if err is not None else None,
         )

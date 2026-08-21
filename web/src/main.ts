@@ -50,8 +50,12 @@ async function poll() {
                 : "auto";
     const fps = frame.fps != null ? ` | ${frame.fps} FPS` : "";
     const dm = frame.depth_mode ?? workerStatus?.depth_mode ?? "face";
+    const calErr =
+      frame.calibration_error_pct != null
+        ? ` | erro calib: ${frame.calibration_error_pct.toFixed(2)}%`
+        : "";
     statusEl.textContent =
-      `Modo: ${mode} (${dm}) | disparidade ${frame.disparity_px.toFixed(1)} px | ponto (${frame.sample_point.x}, ${frame.sample_point.y})${fps}`;
+      `Modo: ${mode} (${dm}) | disparidade ${frame.disparity_px.toFixed(1)} px | ponto (${frame.sample_point.x}, ${frame.sample_point.y})${calErr}${fps}`;
     statusEl.classList.remove("error");
   } catch (err) {
     statusEl.textContent = `Erro: ${err instanceof Error ? err.message : String(err)}`;
@@ -65,7 +69,11 @@ async function init() {
     await client.health();
     const st = await client.status();
     workerStatus = st;
-    statusEl.textContent = `Modo ${st.depth_mode} | Físico: ${st.physical_left_index}/${st.physical_right_index} | Calib: ${st.calib_left_index}/${st.calib_right_index} — ${st.frame_size[0]}×${st.frame_size[1]}`;
+    const calErr =
+      st.calibration_error_pct != null
+        ? ` | erro calib: ${st.calibration_error_pct.toFixed(2)}%`
+        : "";
+    statusEl.textContent = `Modo ${st.depth_mode} | Físico: ${st.physical_left_index}/${st.physical_right_index} | Calib: ${st.calib_left_index}/${st.calib_right_index} — ${st.frame_size[0]}×${st.frame_size[1]}${calErr}`;
     poll();
   } catch (err) {
     statusEl.textContent =

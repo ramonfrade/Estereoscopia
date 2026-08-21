@@ -8,5 +8,6 @@
     "noEmit": true,
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/worker-spawn.ts"]
 }

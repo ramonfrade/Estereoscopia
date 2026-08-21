@@ -54,7 +54,7 @@ def _get_engine() -> StereoEngine:
     return engine
 
 
-def build_frame_payload(result: dict, fps: float | None = None) -> dict:
+def build_frame_payload(result: dict, fps: float | None = None, calibration_error_pct: float | None = None) -> dict:
     point = result["sample_point"]
     depth_cm = result["depth_cm"]
     track_mode = result.get("track_mode", "")
@@ -68,6 +68,7 @@ def build_frame_payload(result: dict, fps: float | None = None) -> dict:
         "sample_point": point,
         "track_mode": track_mode,
         "depth_mode": result.get("depth_mode", default_depth_mode.value),
+        "calibration_error_pct": calibration_error_pct,
         "images": {
             "left": encode_image_b64(left),
             "right": encode_image_b64(right),
@@ -84,7 +85,9 @@ def run_once(depth_mode: DepthMode = default_depth_mode) -> dict:
     eng.open_cameras()
     try:
         result = eng.process_frame()
-        return build_frame_payload(result)
+        return build_frame_payload(
+            result, calibration_error_pct=eng.depth_config.calibration_error_pct
+        )
     finally:
         eng.close_cameras()
 
@@ -156,6 +159,7 @@ def status():
         "physical_right_index": layout.physical_right,
         "frame_size": list(eng.frame_size),
         "depth_mode": eng.depth_mode.value,
+        "calibration_error_pct": eng.depth_config.calibration_error_pct,
     }
 
 
@@ -166,7 +170,9 @@ def get_frame(x: int | None = None, y: int | None = None):
         start = time.time()
         result = eng.process_frame(sample_x=x, sample_y=y)
         fps = 1.0 / (time.time() - start) if time.time() > start else None
-        return build_frame_payload(result, fps=fps)
+        return build_frame_payload(
+            result, fps=fps, calibration_error_pct=eng.depth_config.calibration_error_pct
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
