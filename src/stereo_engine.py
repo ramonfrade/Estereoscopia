@@ -59,6 +59,7 @@ class StereoEngine:
         layout: CameraLayout | None = None,
         depth_mode: DepthMode = DepthMode.FACE,
         depth_config: DepthConfig | None = None,
+        num_disparities: int = 512,
     ):
         self.layout = layout
         self.depth_mode = depth_mode
@@ -67,7 +68,8 @@ class StereoEngine:
         self.q_matrix: np.ndarray | None = None
         self.frame_size: tuple[int, int] = (FRAME_WIDTH, FRAME_HEIGHT)
         self.unit_to_cm = 1.0
-        self._stereo = self._create_stereo_matcher()
+        self._num_disparities = num_disparities
+        self._stereo = self._create_stereo_matcher(self._num_disparities)
         self._face_strategy: FaceDepthStrategy | None = None
         self._sgbm_strategy: SgbmDepthStrategy | None = None
         self._load_calibration()
@@ -96,13 +98,15 @@ class StereoEngine:
             self._sgbm_strategy = SgbmDepthStrategy(self._stereo, self.q_matrix, self.unit_to_cm)
 
     @staticmethod
-    def _create_stereo_matcher() -> cv2.StereoSGBM:
+    def _create_stereo_matcher(num_disparities: int = 512) -> cv2.StereoSGBM:
+        """Matcher SGBM com faixa ampla: f=641 px + baseline 15 cm dão ~19 cm
+        de profundidade mínima com 512 disparidades (128 saturava em ~76 cm,
+        'prendendo' o alvo mais próximo em um valor fixo)."""
         window_size = 5
         min_disp = 0
-        num_disp = 16 * 8
         return cv2.StereoSGBM_create(
             minDisparity=min_disp,
-            numDisparities=num_disp,
+            numDisparities=num_disparities,
             blockSize=window_size,
             P1=8 * 3 * window_size**2,
             P2=32 * 3 * window_size**2,

@@ -217,7 +217,9 @@ Usa as duas câmeras (disparidade densa SGBM) para calcular distâncias, mas
 exibe **somente o feed esquerdo** com um círculo pequeno + distância em cm no
 **objeto mais próximo** (dedo, mão, qualquer objeto — sem reconhecê-lo) e
 retângulos em **todos os rostos** detectados (MediaPipe). Ajustes opcionais:
-`--margin` (borda ignorada) e `--min-area-pct` (área mínima do alvo).
+`--margin` (borda ignorada), `--min-area-pct` (área mínima do alvo) e
+`--num-disparities` (faixa de disparidade do SGBM; o padrão 512 mede até
+~19 cm — 128 saturava em ~76 cm, prendendo o alvo num valor fixo).
 
 ### Modo único (JSON no stdout — para integração/scripts)
 

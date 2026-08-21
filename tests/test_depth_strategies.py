@@ -1,7 +1,8 @@
+import cv2
 import numpy as np
 
 from depth_config import DepthConfig
-from depth_strategies import FaceDepthStrategy
+from depth_strategies import FaceDepthStrategy, SgbmDepthStrategy
 
 
 class FakeDetector:
@@ -40,3 +41,34 @@ def test_face_strategy_tracking_lost():
     result = strat.estimate(blank, blank, blank, blank)
     assert result["track_mode"] == "lost"
     assert result["depth_cm"] is None
+
+
+class FakeMatcher:
+    def __init__(self):
+        self.calls: list[tuple[np.ndarray, np.ndarray]] = []
+
+    def compute(self, gray_left, gray_right):
+        self.calls.append((gray_left.copy(), gray_right.copy()))
+        h, w = gray_left.shape
+        return np.full((h, w), 16 * 10, dtype=np.int16)
+
+
+def test_sgbm_strategy_uses_display_physical_order():
+    """A disparidade deve ser calculada na ORDEM FÍSICA (display), não na de calibração.
+
+    Com calibLeft=0 / physicalLeft=2 (câmeras trocadas), usar a ordem de
+    calibração inverte o sinal da disparidade (objeto próximo vira negativo e
+    é descartado) e desalinha as coordenadas com o vídeo exibido.
+    """
+    rect_l = np.zeros((20, 30, 3), dtype=np.uint8)  # calib left (video0)
+    rect_r = np.full((20, 30, 3), 255, dtype=np.uint8)  # calib right (video2)
+    display_l, display_r = rect_r, rect_l  # ordem física TROCADA
+
+    matcher = FakeMatcher()
+    strat = SgbmDepthStrategy(matcher, np.eye(4), unit_to_cm=1.0)
+    strat.estimate(display_l, display_r, rect_l, rect_r)
+
+    assert matcher.calls, "matcher nunca foi chamado"
+    gray_l, gray_r = matcher.calls[0]
+    assert np.array_equal(gray_l, cv2.cvtColor(display_l, cv2.COLOR_BGR2GRAY))
+    assert np.array_equal(gray_r, cv2.cvtColor(display_r, cv2.COLOR_BGR2GRAY))

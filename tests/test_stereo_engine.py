@@ -60,3 +60,13 @@ def test_sgbm_depth_at_point():
     assert d == 20.0
     assert depth is not None
     assert 0 < depth < 1000
+
+
+def test_matcher_disparity_range_covers_close_objects():
+    """Com f=641 px e baseline 15 cm, numDisparities=128 satura a ~76 cm.
+
+    O alvo mais próximo (dedo/mão) fica 'preso' em ~76 cm; a faixa padrão
+    precisa cobrir objetos bem mais próximos (>= 256 disparidades).
+    """
+    matcher = StereoEngine._create_stereo_matcher()
+    assert matcher.getNumDisparities() >= 256

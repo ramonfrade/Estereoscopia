@@ -112,8 +112,8 @@ def depth_at_point(
     return depth_cm
 
 
-def run_demo(margin: float = 0.08, min_area_pct: float = 0.002) -> None:
-    eng = StereoEngine(depth_mode=DepthMode.SGBM)
+def run_demo(margin: float = 0.08, min_area_pct: float = 0.002, num_disparities: int = 512) -> None:
+    eng = StereoEngine(depth_mode=DepthMode.SGBM, num_disparities=num_disparities)
     eng.open_cameras()
     detector = FaceDetector()
     print("Alvo mais próximo (janela única — câmera esquerda). 'q' para sair.")
@@ -164,8 +164,12 @@ def main() -> None:
                         help="fração da borda ignorada na busca (padrão 0.08)")
     parser.add_argument("--min-area-pct", type=float, default=0.002,
                         help="área mínima do alvo como fração do frame (padrão 0.002)")
+    parser.add_argument("--num-disparities", type=int, default=512,
+                        help="faixa de disparidade do SGBM (múltiplo de 16; maior = mede "
+                             "objetos mais próximos, porém mais lento; padrão 512)")
     args = parser.parse_args()
-    run_demo(margin=args.margin, min_area_pct=args.min_area_pct)
+    run_demo(margin=args.margin, min_area_pct=args.min_area_pct,
+             num_disparities=args.num_disparities)
 
 
 if __name__ == "__main__":
