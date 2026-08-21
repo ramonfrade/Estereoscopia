@@ -36,3 +36,10 @@ When adding tools or config, prefer conventional Python project layout:
 - `tests/` with `pytest`
 - `.gitignore` covering `__pycache__/`, `*.pyc`, `.venv/`, calibration files
 
+## Git workflow (user rule — memorize, always follow)
+
+- **Before starting ANY task**: make a commit of the current working tree
+  (so the baseline is recorded). If the tree is already clean, nothing to do.
+- **After finishing ANY task**: make a commit of the completed work.
+- This applies to every task, without exceptions.
+
