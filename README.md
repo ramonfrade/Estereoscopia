@@ -172,6 +172,13 @@ python src/detect_chessboard.py --auto --image images/stereoLeft/imageL0.png
 python src/validate_calibration.py                      # correlação epipolar, área preta, RMS
 ```
 
+O `detect_chessboard.py` **acumula** as leituras (padrão e erro % por quadro)
+para estimar a média; tecla **`w`/`W`** grava os parâmetros de reconhecimento
+(padrão de cantos e, com `--board-width/--board-height`, dimensões do tabuleiro)
+no `calibration.json` — mostrando no console os dados calculados e a diferença
+vs. a configuração anterior; tecla **ESC/`q`** sai **sem gravar** (configuração
+anterior mantida).
+
 ---
 
 ## 6. Como executar o sistema
