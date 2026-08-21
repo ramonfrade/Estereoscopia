@@ -6,12 +6,19 @@ Uso:
   python src/detect_chessboard.py --image images/stereoLeft/imageL0.png
   python src/detect_chessboard.py --size 7 7
   python src/detect_chessboard.py --auto        # detecta 8x8 ou 8x4 sozinho + erro %
+  python src/detect_chessboard.py --board-width 34.624 --board-height 34.624
+
+Os parâmetros usados no reconhecimento (padrão de cantos e, se informado,
+dimensões do tabuleiro) são salvos em calibration.json (mesmo arquivo da
+calibração), preservando os demais campos.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -21,10 +28,38 @@ PROJECT_ROOT = SRC.parent
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from chessboard_auto import board_error_pct, detect_chessboard_auto
+from chessboard_auto import board_error_pct, detect_chessboard_auto, square_size_cm
+
+CALIBRATION_JSON = PROJECT_ROOT / "calibration.json"
 
 FIND_FLAGS = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
 CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+
+def save_recognition_params(
+    size: tuple[int, int],
+    board_size_cm: tuple[float, float] | None = None,
+    path: Path = CALIBRATION_JSON,
+) -> dict:
+    """Salva no calibration.json os parâmetros usados no reconhecimento.
+
+    Atualiza chessboardSize/pattern (e board_size_cm/square_cm quando
+    informado), preservando o restante do arquivo (Q, baseline, câmeras...).
+    """
+    data = {}
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+    cols, rows = size
+    data["chessboardSize"] = [cols, rows]
+    data["pattern"] = f"{cols + 1}x{rows + 1}"
+    if board_size_cm is not None:
+        w, h = float(board_size_cm[0]), float(board_size_cm[1])
+        data["board_size_cm"] = [w, h]
+        data["square_cm"] = round(square_size_cm(w, h, size), 3)
+    path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    return data
 
 
 def detect(gray: cv2.Mat, size: tuple[int, int]) -> tuple[bool, object]:
@@ -85,12 +120,15 @@ def test_live(size: tuple[int, int]) -> None:
     cv2.destroyAllWindows()
 
 
-def test_image_auto(path: Path) -> bool:
-    """Detecta 8x8 ou 8x4 automaticamente em uma foto e mostra o erro %."""
+def test_image_auto(path: Path):
+    """Detecta 8x8 ou 8x4 automaticamente em uma foto e mostra o erro %.
+
+    Retorna (size, corners) quando detectado, senão None.
+    """
     img = cv2.imread(str(path))
     if img is None:
         print(f"Erro ao ler {path}")
-        return False
+        return None
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     result = detect_chessboard_auto(gray)
     if result is None:
@@ -108,11 +146,14 @@ def test_image_auto(path: Path) -> bool:
     cv2.imshow("detect_chessboard --auto", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    return result is not None
+    return result
 
 
-def test_live_auto() -> None:
-    """Loop ao vivo: detecta o padrão sozinho e mostra o erro % continuamente."""
+def test_live_auto(on_detect: Callable[[tuple[int, int]], None] | None = None) -> None:
+    """Loop ao vivo: detecta o padrão sozinho e mostra o erro % continuamente.
+
+    on_detect é chamado uma única vez, no primeiro padrão detectado.
+    """
     cap0 = cv2.VideoCapture(0)
     cap2 = cv2.VideoCapture(2)
     for cap in (cap0, cap2):
@@ -121,6 +162,7 @@ def test_live_auto() -> None:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     print("Auto: 8x8 ou 8x4. ESC=sair")
+    saved = False
     while True:
         ok0, f0 = cap0.read()
         ok2, f2 = cap2.read()
@@ -134,6 +176,9 @@ def test_live_auto() -> None:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             else:
                 size, corners = result
+                if on_detect is not None and not saved:
+                    on_detect(size)
+                    saved = True
                 err = board_error_pct(gray, corners, size)
                 cols, rows = size
                 cv2.drawChessboardCorners(frame, size, corners, True)
@@ -155,18 +200,41 @@ def main() -> None:
                        metavar=("COLS", "ROWS"), help="cantos internos (padrão 7 7)")
     group.add_argument("--auto", action="store_true",
                        help="detecta 8x8 ou 8x4 sozinho e mostra o erro percentual")
+    parser.add_argument("--board-width", type=float,
+                        help="largura do tabuleiro em cm (salva no calibration.json)")
+    parser.add_argument("--board-height", type=float,
+                        help="altura do tabuleiro em cm (salva no calibration.json)")
     args = parser.parse_args()
+
+    if (args.board_width is None) != (args.board_height is None):
+        parser.error("--board-width e --board-height devem ser informados juntos")
+    board_size = None
+    if args.board_width is not None:
+        board_size = (args.board_width, args.board_height)
+
     size = (args.size[0], args.size[1])
+
+    def salvar(detected: tuple[int, int]) -> None:
+        save_recognition_params(detected, board_size_cm=board_size)
+        print(
+            f"Parâmetros salvos em {CALIBRATION_JSON}: "
+            f"canto {detected[0]}x{detected[1]} | padrão {detected[0] + 1}x{detected[1] + 1}"
+        )
+
     if args.image:
         if args.auto:
-            test_image_auto(args.image)
+            result = test_image_auto(args.image)
+            if result is not None:
+                salvar(result[0])
         else:
             test_image(args.image, size)
+            salvar(size)
     else:
         if args.auto:
-            test_live_auto()
+            test_live_auto(on_detect=salvar)
         else:
             test_live(size)
+            salvar(size)
 
 
 if __name__ == "__main__":
