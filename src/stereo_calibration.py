@@ -37,7 +37,8 @@ PROJECT_ROOT = SRC.parent
 SHOW_PREVIEW = bool(os.environ.get("DISPLAY"))
 
 FRAME_SIZE = (640, 480)
-LEGACY_SQUARE_CM = 4.4  # usado apenas no fallback sem --board-width/--board-height
+LEGACY_SQUARE_CM = 4.328  # default: quadrado do tabuleiro real (8x8 = 34.624 cm);
+# usado apenas no fallback sem --board-width/--board-height
 CRITERIA = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
 

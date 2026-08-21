@@ -120,12 +120,15 @@ na calibração (não é fixa no código):
 python src/stereo_calibration.py \
   --board-width 80 \    # largura física do tabuleiro em cm
   --board-height 40 \   # altura física do tabuleiro em cm
-  --baseline 7.0        # distância entre os focos das câmeras em cm
+  --baseline 15.0       # distância entre os centros das lentes em cm
 ```
 
 O tamanho do padrão (8×8 ou 8×4) é **detectado automaticamente** — não precisa
-informar. Valores padrão usados pelo modo `face` quando o JSON não fornece:
-baseline 7.0 cm, focal 8.0 mm, FOV 56.6° (em `src/depth_config.py`).
+informar. Defaults (em `src/depth_config.py`): baseline **15.0 cm** (distância
+entre centros das lentes), focal 8.0 mm, FOV 56.6°. Sem `--board-width`/
+`--board-height`, o quadrado default é **4.328 cm** (tabuleiro 8×8 = 34.624 cm)
+— ver `LEGACY_SQUARE_CM` em `src/stereo_calibration.py`. Todos esses valores
+podem ser sobrescritos pelos parâmetros da calibração.
 
 ### `images/stereoLeft/` e `images/stereoRight/`
 
@@ -140,7 +143,7 @@ por `src/calibration_images.py` e usados apenas no fluxo de calibração
 ### Modo ao vivo (recomendado) — sem tirar fotos antes
 
 ```bash
-python src/stereo_calibration.py --board-width 80 --board-height 40 --baseline 7.0
+python src/stereo_calibration.py --board-width 80 --board-height 40 --baseline 15.0
 ```
 
 1. Aponta o tabuleiro (8×8 ou 8×4) para as câmeras: o padrão é detectado sozinho

@@ -10,8 +10,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION_JSON = PROJECT_ROOT / "calibration.json"
 
-# Valores padrão do stereoVision.py em src_old (B=7, f=8, alpha=56.6)
-DEFAULT_BASELINE_CM = 7.0
+# Valores padrão (B=15 cm — distância entre centros das lentes, f=8, alpha=56.6)
+DEFAULT_BASELINE_CM = 15.0
 DEFAULT_FOCAL_MM = 8.0
 DEFAULT_FOV_DEG = 56.6
 

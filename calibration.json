@@ -30,11 +30,16 @@
     480
   ],
   "baseline_units": 3.4608165202330667,
-  "physical_baseline_cm": 7.0,
+  "physical_baseline_cm": 15.0,
   "chessboardSize": [
     7,
     7
   ],
+  "board_size_cm": [
+    34.624,
+    34.624
+  ],
+  "square_cm": 4.328,
   "cameras": {
     "calibLeft": 0,
     "calibRight": 2,
