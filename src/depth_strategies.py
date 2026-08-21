@@ -168,12 +168,10 @@ class SgbmDepthStrategy(DepthStrategy):
         sample_x: int | None = None,
         sample_y: int | None = None,
     ) -> dict:
-        # Disparidade na ORDEM FÍSICA (display), não na de calibração: quando
-        # physicalLeft != calibLeft, usar a ordem de calibração inverte o sinal
-        # (objeto próximo vira disparidade negativa e é descartado) e desalinha
-        # as coordenadas com o vídeo exibido.
-        gray_left = cv2.cvtColor(display_left, cv2.COLOR_BGR2GRAY)
-        gray_right = cv2.cvtColor(display_right, cv2.COLOR_BGR2GRAY)
+        # SGBM na ordem da calibração (a mesma da matriz Q). A ordem física
+        # inverte d: aproximar faz a distância exibida crescer.
+        gray_left = cv2.cvtColor(rect_calib_left, cv2.COLOR_BGR2GRAY)
+        gray_right = cv2.cvtColor(rect_calib_right, cv2.COLOR_BGR2GRAY)
 
         disparity_raw = self._stereo.compute(gray_left, gray_right)
         disparity = disparity_raw.astype(np.float32) / 16.0

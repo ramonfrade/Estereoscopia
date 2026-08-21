@@ -2,7 +2,15 @@
 
 import numpy as np
 
-from closest_target import depth_at_point, find_closest_target
+from closest_target import (
+    DepthSmoother,
+    calib_left_xy_to_display,
+    closest_matched_face,
+    depth_at_point,
+    depth_from_disparity_px,
+    find_closest_target,
+)
+from face_detection import FaceCenter
 
 
 def test_find_closest_target_returns_centroid_of_nearest_blob():
@@ -131,3 +139,62 @@ def test_depth_at_point_real_q_varies_with_disparity():
     assert z_far is not None and z_near is not None
     assert z_far > z_near
     assert abs(z_far / z_near - 2.0) < 0.05
+
+
+def _q_z_equals_100_over_d() -> np.ndarray:
+    return np.array(
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 100.0],
+            [0.0, 0.0, -1.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def test_depth_from_disparity_px_inverse_of_d():
+    q = _q_z_equals_100_over_d()
+    assert depth_from_disparity_px(10.0, q, 1.0) == 10.0
+    assert depth_from_disparity_px(20.0, q, 1.0) == 5.0
+
+
+def test_closest_matched_face_picks_larger_disparity():
+    """Aproximar aumenta |x_esq - x_dir| e deve DIMINUIR a distância, não crescer."""
+    q = _q_z_equals_100_over_d()
+    faces_left = [
+        FaceCenter(x=300.0, y=200.0, score=1.0, bbox=(0, 0, 10, 10)),  # d=80 → 1.25 cm
+        FaceCenter(x=400.0, y=80.0, score=1.0, bbox=(0, 0, 10, 10)),  # d=20 → 5 cm
+    ]
+    faces_right = [
+        FaceCenter(x=220.0, y=202.0, score=1.0, bbox=(0, 0, 10, 10)),
+        FaceCenter(x=380.0, y=81.0, score=1.0, bbox=(0, 0, 10, 10)),
+    ]
+
+    hit = closest_matched_face(faces_left, faces_right, q, unit_to_cm=1.0)
+
+    assert hit is not None
+    depth_cm, face, disp = hit
+    assert face.x == 300.0
+    assert disp == 80.0
+    assert depth_cm == 1.25
+
+
+def test_closest_matched_face_none_without_pairs():
+    q = _q_z_equals_100_over_d()
+    left = [FaceCenter(x=100.0, y=50.0, score=1.0, bbox=(0, 0, 10, 10))]
+    right = [FaceCenter(x=110.0, y=400.0, score=1.0, bbox=(0, 0, 10, 10))]  # dy grande
+    assert closest_matched_face(left, right, q, 1.0, max_dy=40.0) is None
+
+
+def test_calib_left_xy_to_display_shifts_when_swapped():
+    assert calib_left_xy_to_display(200, 100, 40.0, swapped=True) == (160, 100)
+    assert calib_left_xy_to_display(200, 100, 40.0, swapped=False) == (200, 100)
+
+
+def test_depth_smoother_ema():
+    s = DepthSmoother(alpha=0.5)
+    assert s.update(10.0) == 10.0
+    assert s.update(20.0) == 15.0
+    s.update(None)
+    assert s.value == 15.0

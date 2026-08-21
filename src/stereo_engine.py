@@ -123,7 +123,7 @@ class StereoEngine:
             P1=8 * 3 * window_size**2,
             P2=32 * 3 * window_size**2,
             disp12MaxDiff=1,
-            uniquenessRatio=5,
+            uniquenessRatio=10,
             speckleWindowSize=50,
             speckleRange=16,
             mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY,

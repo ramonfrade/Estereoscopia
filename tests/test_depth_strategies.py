@@ -53,12 +53,11 @@ class FakeMatcher:
         return np.full((h, w), 16 * 10, dtype=np.int16)
 
 
-def test_sgbm_strategy_uses_display_physical_order():
-    """A disparidade deve ser calculada na ORDEM FÍSICA (display), não na de calibração.
+def test_sgbm_strategy_uses_calib_order_for_q():
+    """Q vem do stereoRectify na ordem de calibração; SGBM tem de usar o mesmo par.
 
-    Com calibLeft=0 / physicalLeft=2 (câmeras trocadas), usar a ordem de
-    calibração inverte o sinal da disparidade (objeto próximo vira negativo e
-    é descartado) e desalinha as coordenadas com o vídeo exibido.
+    Ordem física (display) com physicalLeft != calibLeft inverte d: aproximar
+    *aumenta* a distância exibida e o mapa não corresponde à matriz Q.
     """
     rect_l = np.zeros((20, 30, 3), dtype=np.uint8)  # calib left (video0)
     rect_r = np.full((20, 30, 3), 255, dtype=np.uint8)  # calib right (video2)
@@ -70,5 +69,5 @@ def test_sgbm_strategy_uses_display_physical_order():
 
     assert matcher.calls, "matcher nunca foi chamado"
     gray_l, gray_r = matcher.calls[0]
-    assert np.array_equal(gray_l, cv2.cvtColor(display_l, cv2.COLOR_BGR2GRAY))
-    assert np.array_equal(gray_r, cv2.cvtColor(display_r, cv2.COLOR_BGR2GRAY))
+    assert np.array_equal(gray_l, cv2.cvtColor(rect_l, cv2.COLOR_BGR2GRAY))
+    assert np.array_equal(gray_r, cv2.cvtColor(rect_r, cv2.COLOR_BGR2GRAY))
